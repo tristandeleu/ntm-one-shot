@@ -32,14 +32,29 @@ wu_0 = shared_one_hot(memory_shape[0], name='wu')
 W_key, b_key = weight_and_bias_init((controller_size, memory_shape[1]), name='key')
 W_add, b_add = weight_and_bias_init((controller_size, memory_shape[1]), name='add')
 W_sigma, b_sigma = weight_and_bias_init((controller_size, 1), name='sigma')
-W_h, b_h = weight_and_bias_init((input_size, controller_size), name='h')
+# QKFIX: The scaling factor in Glorot initialisation is not correct if we
+# are computing the preactivations jointly
+W_xh, b_h = weight_and_bias_init((input_size, 4 * controller_size), name='xh')
+W_hh = shared_glorot_uniform((controller_size, 4 * controller_size), name='W_hh')
 W_o, b_o = weight_and_bias_init((controller_size + memory_shape[1], nb_class), name='o')
 gamma = 0.95
 
+def slice_preactivations(x):
+    return [x[n*controller_size:(n+1)*controller_size] for n in range(4)]
+
 def step(x_t, M_tm1, c_tm1, h_tm1, r_tm1, wr_tm1, ww_tm1, wu_tm1):
-    # TODO: Put a LSTM controller
-    c_t = c_tm1
-    h_t = lasagne.nonlinearities.tanh(T.dot(x_t, W_h) + b_h)
+    # Feed Forward controller
+    # h_t = lasagne.nonlinearities.tanh(T.dot(x_t, W_h) + b_h)
+    # LSTM controller
+    preactivations = T.dot(x_t, W_xh) + T.dot(h_tm1, W_hh) + b_h
+    gf_, gi_, go_, u_ = slice_preactivations(preactivations)
+    gf = lasagne.nonlinearities.sigmoid(gf_)
+    gi = lasagne.nonlinearities.sigmoid(gi_)
+    go = lasagne.nonlinearities.sigmoid(go_)
+    u = lasagne.nonlinearities.tanh(u_)
+
+    c_t = gf * c_tm1 + gi * u
+    h_t = go * lasagne.nonlinearities.tanh(c_t)
 
     k_t = lasagne.nonlinearities.tanh(T.dot(h_t, W_key) + b_key)
     a_t = lasagne.nonlinearities.tanh(T.dot(h_t, W_add) + b_add)
@@ -86,7 +101,7 @@ l_ntm_output_var = T.concatenate(l_ntm_var[2:4], axis=1)
 output_var = lasagne.nonlinearities.softmax(T.dot(l_ntm_output_var, W_o) + b_o)
 
 cost = T.mean(T.nnet.categorical_crossentropy(output_var, target_var))
-params = [W_key, b_key, W_add, b_add, W_sigma, b_sigma, W_h, b_h, W_o, b_o]
+params = [W_key, b_key, W_add, b_add, W_sigma, b_sigma, W_xh, W_hh, b_h, W_o, b_o]
 updates = lasagne.updates.adam(cost, params, learning_rate=1e-4)
 
 train_fn = theano.function([input_var, target_var], cost, updates=updates)
