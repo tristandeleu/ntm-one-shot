@@ -1,11 +1,16 @@
 import theano
 import theano.tensor as T
 import numpy as np
+import os
+import random
 
 import lasagne.nonlinearities
+import lasagne.updates
 from utils.init import weight_and_bias_init, shared_glorot_uniform, shared_one_hot
 from utils.similarities import cosine_similarity
 from utils.theano_utils import shared_floatX
+from utils.images import get_shuffled_images, time_offset_input
+from utils.generators import OmniglotGenerator
 
 nb_class = 5
 memory_shape = (128, 40)
@@ -28,8 +33,8 @@ W_key, b_key = weight_and_bias_init((controller_size, memory_shape[1]), name='ke
 W_add, b_add = weight_and_bias_init((controller_size, memory_shape[1]), name='add')
 W_sigma, b_sigma = weight_and_bias_init((controller_size, 1), name='sigma')
 W_h, b_h = weight_and_bias_init((input_size, controller_size), name='h')
-gamma = 0.95
 W_o, b_o = weight_and_bias_init((controller_size + memory_shape[1], nb_class), name='o')
+gamma = 0.95
 
 def step(x_t, M_tm1, c_tm1, h_tm1, r_tm1, wr_tm1, ww_tm1, wu_tm1):
     # TODO: Put a LSTM controller
@@ -81,10 +86,17 @@ l_ntm_output_var = T.concatenate(l_ntm_var[2:4], axis=1)
 output_var = lasagne.nonlinearities.softmax(T.dot(l_ntm_output_var, W_o) + b_o)
 
 cost = T.mean(T.nnet.categorical_crossentropy(output_var, target_var))
+params = [W_key, b_key, W_add, b_add, W_sigma, b_sigma, W_h, b_h, W_o, b_o]
+updates = lasagne.updates.adam(cost, params, learning_rate=1e-4)
 
-cost_function = theano.function([input_var, target_var], cost)
+train_fn = theano.function([input_var, target_var], cost, updates=updates)
 
-a = np.random.rand(50, 20 * 20)
-b = np.asarray(np.random.randint(5, size=50), dtype=np.int32)
+##
+# Load data
+##
+generator = OmniglotGenerator(data_folder='./data/omniglot', nb_samples=5, \
+    max_rotation=0., max_shift=0, max_iter=100)
 
-print cost_function(a, b)
+for i, (example_input, example_output) in generator:
+    score = train_fn(example_input, example_output)
+    print 'Episode %02d: %.6f' % (i, score)
