@@ -9,11 +9,15 @@ import os
 import random
 
 
-def get_shuffled_images(paths):
+def get_shuffled_images(paths, nb_samples=None):
     random.shuffle(paths)
+    if nb_samples is not None:
+        sampler = lambda x: random.sample(x, nb_samples)
+    else:
+        sampler = lambda x: x
     images = [(i, os.path.join(path, image)) \
         for i, path in enumerate(paths) \
-        for image in os.listdir(path)]
+        for image in sampler(os.listdir(path))]
     random.shuffle(images)
     return images
 

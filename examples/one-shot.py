@@ -95,7 +95,7 @@ train_fn = theano.function([input_var, target_var], cost, updates=updates)
 # Load data
 ##
 generator = OmniglotGenerator(data_folder='./data/omniglot', nb_samples=5, \
-    max_rotation=0., max_shift=0, max_iter=100)
+    nb_samples_per_class=10, max_rotation=0., max_shift=0, max_iter=100)
 
 for i, (example_input, example_output) in generator:
     score = train_fn(example_input, example_output)

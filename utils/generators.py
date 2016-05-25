@@ -8,11 +8,12 @@ from images import get_shuffled_images, time_offset_input, load_transform
 
 class OmniglotGenerator(object):
     """docstring for OmniglotGenerator"""
-    def __init__(self, data_folder, nb_samples=5, max_rotation=-np.pi/6, \
+    def __init__(self, data_folder, nb_samples=5, nb_samples_per_class=10, max_rotation=-np.pi/6, \
             max_shift=10, max_iter=None):
         super(OmniglotGenerator, self).__init__()
         self.data_folder = data_folder
         self.nb_samples = nb_samples
+        self.nb_samples_per_class = nb_samples_per_class
         self.max_rotation = max_rotation * 180. / np.pi
         self.max_shift = max_shift
         self.max_iter = max_iter
@@ -36,7 +37,7 @@ class OmniglotGenerator(object):
 
     def sample(self, nb_samples):
         sampled_character_folders = random.sample(self.character_folders, nb_samples)
-        labels_and_images = get_shuffled_images(sampled_character_folders)
+        labels_and_images = get_shuffled_images(sampled_character_folders, nb_samples=self.nb_samples_per_class)
         sequence_length = len(labels_and_images)
         labels, image_files = zip(*labels_and_images)
 
