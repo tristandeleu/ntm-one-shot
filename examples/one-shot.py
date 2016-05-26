@@ -37,6 +37,8 @@ W_sigma, b_sigma = weight_and_bias_init((controller_size, 1), name='sigma')
 # QKFIX: The scaling factor in Glorot initialisation is not correct if we
 # are computing the preactivations jointly
 W_xh, b_h = weight_and_bias_init((input_size, 4 * controller_size), name='xh')
+# QKFIX: Only 1 read head
+W_rh = shared_glorot_uniform((memory_shape[1], 4 * controller_size), name='W_rh')
 W_hh = shared_glorot_uniform((controller_size, 4 * controller_size), name='W_hh')
 W_o, b_o = weight_and_bias_init((controller_size + memory_shape[1], nb_class), name='o')
 gamma = 0.95
@@ -48,7 +50,10 @@ def step(x_t, M_tm1, c_tm1, h_tm1, r_tm1, wr_tm1, ww_tm1, wu_tm1):
     # Feed Forward controller
     # h_t = lasagne.nonlinearities.tanh(T.dot(x_t, W_h) + b_h)
     # LSTM controller
-    preactivations = T.dot(x_t, W_xh) + T.dot(h_tm1, W_hh) + b_h
+    # p.3: "This memory is used by the controller as the input to a classifier,
+    #       such as a softmax output layer, and as an additional
+    #       input for the next controller state."
+    preactivations = T.dot(x_t, W_xh) + T.dot(r_tm1, W_rh) + T.dot(h_tm1, W_hh) + b_h
     gf_, gi_, go_, u_ = slice_preactivations(preactivations)
     gf = lasagne.nonlinearities.sigmoid(gf_)
     gi = lasagne.nonlinearities.sigmoid(gi_)
@@ -103,7 +108,7 @@ l_ntm_output_var = T.concatenate(l_ntm_var[2:4], axis=1)
 output_var = lasagne.nonlinearities.softmax(T.dot(l_ntm_output_var, W_o) + b_o)
 
 cost = T.mean(T.nnet.categorical_crossentropy(output_var, target_var))
-params = [W_key, b_key, W_add, b_add, W_sigma, b_sigma, W_xh, W_hh, b_h, W_o, b_o]
+params = [W_key, b_key, W_add, b_add, W_sigma, b_sigma, W_xh, W_rh, W_hh, b_h, W_o, b_o]
 updates = lasagne.updates.adam(cost, params, learning_rate=1e-4)
 
 accuracies = accuracy_instance(T.argmax(output_var, axis=1), target_var)
