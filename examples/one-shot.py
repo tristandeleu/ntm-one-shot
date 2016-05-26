@@ -11,6 +11,8 @@ from utils.similarities import cosine_similarity
 from utils.theano_utils import shared_floatX
 from utils.images import get_shuffled_images, time_offset_input
 from utils.generators import OmniglotGenerator
+from utils.metrics import accuracy_instance
+import time
 
 nb_class = 5
 memory_shape = (128, 40)
@@ -104,14 +106,21 @@ cost = T.mean(T.nnet.categorical_crossentropy(output_var, target_var))
 params = [W_key, b_key, W_add, b_add, W_sigma, b_sigma, W_xh, W_hh, b_h, W_o, b_o]
 updates = lasagne.updates.adam(cost, params, learning_rate=1e-4)
 
+accuracies = accuracy_instance(T.argmax(output_var, axis=1), target_var)
+
 train_fn = theano.function([input_var, target_var], cost, updates=updates)
+accuracy_fn = theano.function([input_var, target_var], accuracies)
 
 ##
 # Load data
 ##
 generator = OmniglotGenerator(data_folder='./data/omniglot', nb_samples=5, \
     nb_samples_per_class=10, max_rotation=0., max_shift=0, max_iter=100)
-
+t0 = time.time()
 for i, (example_input, example_output) in generator:
     score = train_fn(example_input, example_output)
+    acc = accuracy_fn(example_input, example_output)
     print 'Episode %02d: %.6f' % (i, score)
+    print acc
+
+print time.time() - t0
