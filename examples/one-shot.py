@@ -115,12 +115,20 @@ accuracy_fn = theano.function([input_var, target_var], accuracies)
 # Load data
 ##
 generator = OmniglotGenerator(data_folder='./data/omniglot', nb_samples=5, \
-    nb_samples_per_class=10, max_rotation=0., max_shift=0, max_iter=100)
+    nb_samples_per_class=10, max_rotation=0., max_shift=0, max_iter=None)
 t0 = time.time()
-for i, (example_input, example_output) in generator:
-    score = train_fn(example_input, example_output)
-    acc = accuracy_fn(example_input, example_output)
-    print 'Episode %02d: %.6f' % (i, score)
-    print acc
-
-print time.time() - t0
+all_scores, scores, accs = [], [], np.zeros(generator.nb_samples_per_class)
+try:
+    for i, (example_input, example_output) in generator:
+        score = train_fn(example_input, example_output)
+        acc = accuracy_fn(example_input, example_output)
+        all_scores.append(score)
+        scores.append(score)
+        accs += acc
+        if i > 0 and not (i % 1000):
+            print 'Episode %05d: %.6f' % (i, np.mean(score))
+            print accs / 1000.
+            scores, accs = [], np.zeros(generator.nb_samples_per_class)
+except KeyboardInterrupt:
+    print time.time() - t0
+    pass
