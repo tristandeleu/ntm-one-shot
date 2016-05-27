@@ -18,6 +18,7 @@ nb_class = 5
 memory_shape = (128, 40)
 controller_size = 200
 input_size = 20 * 20 + nb_class
+nb_reads = 4
 
 floatX = theano.config.floatX
 
@@ -25,36 +26,34 @@ floatX = theano.config.floatX
 M_0 = shared_floatX(1e-6 * np.ones(memory_shape), name='memory')
 c_0 = shared_floatX(np.zeros(controller_size), name='memory_cell_state')
 h_0 = shared_floatX(np.zeros(controller_size), name='hidden_state')
-r_0 = shared_floatX(np.zeros(memory_shape[1]), name='read_vector')
-wr_0 = shared_one_hot(memory_shape[0], name='wr')
-ww_0 = shared_one_hot(memory_shape[0], name='ww')
+r_0 = shared_floatX(np.zeros(nb_reads * memory_shape[1]), name='read_vector')
+wr_0 = shared_one_hot(memory_shape[0], name='wr', n=nb_reads)
 wu_0 = shared_one_hot(memory_shape[0], name='wu')
 
 # TODO: Fill the weights
-W_key, b_key = weight_and_bias_init((controller_size, memory_shape[1]), name='key')
-W_add, b_add = weight_and_bias_init((controller_size, memory_shape[1]), name='add')
-W_sigma, b_sigma = weight_and_bias_init((controller_size, 1), name='sigma')
+W_key, b_key = weight_and_bias_init((controller_size, memory_shape[1]), name='key', n=nb_reads)
+W_add, b_add = weight_and_bias_init((controller_size, memory_shape[1]), name='add', n=nb_reads)
+W_sigma, b_sigma = weight_and_bias_init((controller_size, 1), name='sigma', n=nb_reads)
 # QKFIX: The scaling factor in Glorot initialisation is not correct if we
 # are computing the preactivations jointly
 W_xh, b_h = weight_and_bias_init((input_size, 4 * controller_size), name='xh')
-# QKFIX: Only 1 read head
-W_rh = shared_glorot_uniform((memory_shape[1], 4 * controller_size), name='W_rh')
+W_rh = shared_glorot_uniform((nb_reads * memory_shape[1], 4 * controller_size), name='W_rh')
 W_hh = shared_glorot_uniform((controller_size, 4 * controller_size), name='W_hh')
-W_o, b_o = weight_and_bias_init((controller_size + memory_shape[1], nb_class), name='o')
+W_o, b_o = weight_and_bias_init((controller_size + nb_reads * memory_shape[1], nb_class), name='o')
 gamma = 0.95
 
-def slice_preactivations(x):
-    return [x[n*controller_size:(n+1)*controller_size] for n in range(4)]
+def slice_equally(x, size, nb_slices):
+    return [x[n * size:(n + 1) * size] for n in range(nb_slices)]
 
-def step(x_t, M_tm1, c_tm1, h_tm1, r_tm1, wr_tm1, ww_tm1, wu_tm1):
+def step(x_t, M_tm1, c_tm1, h_tm1, r_tm1, wr_tm1, wu_tm1):
     # Feed Forward controller
     # h_t = lasagne.nonlinearities.tanh(T.dot(x_t, W_h) + b_h)
     # LSTM controller
     # p.3: "This memory is used by the controller as the input to a classifier,
     #       such as a softmax output layer, and as an additional
-    #       input for the next controller state."
+    #       input for the next controller state." -> T.dot(r_tm1, W_rh)
     preactivations = T.dot(x_t, W_xh) + T.dot(r_tm1, W_rh) + T.dot(h_tm1, W_hh) + b_h
-    gf_, gi_, go_, u_ = slice_preactivations(preactivations)
+    gf_, gi_, go_, u_ = slice_equally(preactivations, controller_size, 4)
     gf = lasagne.nonlinearities.sigmoid(gf_)
     gi = lasagne.nonlinearities.sigmoid(gi_)
     go = lasagne.nonlinearities.sigmoid(go_)
@@ -63,28 +62,25 @@ def step(x_t, M_tm1, c_tm1, h_tm1, r_tm1, wr_tm1, ww_tm1, wu_tm1):
     c_t = gf * c_tm1 + gi * u
     h_t = go * lasagne.nonlinearities.tanh(c_t)
 
-    k_t = lasagne.nonlinearities.tanh(T.dot(h_t, W_key) + b_key)
-    a_t = lasagne.nonlinearities.tanh(T.dot(h_t, W_add) + b_add)
-    sigma_t = lasagne.nonlinearities.sigmoid(T.dot(h_t, W_sigma) + b_sigma)
+    k_t = lasagne.nonlinearities.tanh(T.dot(h_t, W_key) + b_key) # (nb_reads, memory_size[1])
+    a_t = lasagne.nonlinearities.tanh(T.dot(h_t, W_add) + b_add) # (nb_reads, memory_size[1])
+    sigma_t = lasagne.nonlinearities.sigmoid(T.dot(h_t, W_sigma) + b_sigma) # (nb_reads, 1)
+    sigma_t = T.addbroadcast(sigma_t, 1)
 
-    # "n is set to be the number of reads to memory" -> n is the number of read heads
-    # QKFIX: set n = 1 for now for a single read head
-    # TODO: case where there are multiple read heads
-    wlu_tm1 = T.argmin(wu_tm1, axis=0)
+    wlu_tm1 = T.argsort(wu_tm1, axis=0)[:nb_reads]
     # ww_t = sigma_t * wr_tm1 + (1. - sigma_t) * wlu_tm1
-    ww_t = sigma_t[0] * wr_tm1
-    ww_t = T.inc_subtensor(ww_t[wlu_tm1], 1. - sigma_t[0])
+    ww_t = sigma_t * wr_tm1
+    ww_t = T.inc_subtensor(ww_t[:,wlu_tm1], 1. - sigma_t)
 
-    M_t = M_tm1 + T.outer(ww_t, a_t)
-    K_t = cosine_similarity(k_t, M_t)
+    M_t = M_tm1 + T.dot(ww_t.T, a_t)
+    K_t = cosine_similarity(k_t, M_t) # (nb_reads, memory_size[0])
 
-    # softmax returns a row vector with shape (1, memory_size[0])
-    wr_t = lasagne.nonlinearities.softmax(K_t)[0]
-    wu_t = gamma * wu_tm1 + wr_t + ww_t
+    wr_t = lasagne.nonlinearities.softmax(K_t) # (nb_reads, memory_size[0])
+    wu_t = gamma * wu_tm1 + T.sum(wr_t, axis=0) + T.sum(ww_t, axis=0)
 
-    r_t = T.dot(wr_t, M_t)
+    r_t = T.dot(wr_t, M_t).flatten() # (nb_reads * memory_size[1],)
 
-    return (M_t, c_t, h_t, r_t, wr_t, ww_t, wu_t)
+    return (M_t, c_t, h_t, r_t, wr_t, wu_t)
 
 ##
 # Model
@@ -101,7 +97,7 @@ l_input_var = T.concatenate([input_var, offset_target_var], axis=1)
 
 l_ntm_var, _ = theano.scan(step,
     sequences=[l_input_var],
-    outputs_info=[M_0, c_0, h_0, r_0, wr_0, ww_0, wu_0])
+    outputs_info=[M_0, c_0, h_0, r_0, wr_0, wu_0])
 l_ntm_output_var = T.concatenate(l_ntm_var[2:4], axis=1)
 
 # TODO: add dense layer on top + softmax activation
@@ -130,9 +126,9 @@ try:
         all_scores.append(score)
         scores.append(score)
         accs += acc
-        if i > 0 and not (i % 1000):
+        if i > 0 and not (i % 100):
             print 'Episode %05d: %.6f' % (i, np.mean(score))
-            print accs / 1000.
+            print accs / 100.
             scores, accs = [], np.zeros(generator.nb_samples_per_class)
 except KeyboardInterrupt:
     print time.time() - t0
