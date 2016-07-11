@@ -72,7 +72,10 @@ def step(x_t, M_tm1, c_tm1, h_tm1, r_tm1, wr_tm1, wu_tm1):
     ww_t = sigma_t * wr_tm1
     ww_t = T.inc_subtensor(ww_t[:,wlu_tm1], 1. - sigma_t)
 
-    M_t = M_tm1 + T.dot(ww_t.T, a_t)
+    # p.4: "Prior to writing to memory, the least used memory location is
+    #       computed from wu_tm1 and is set to zero"
+    M_t = T.set_subtensor(M_tm1[wlu_tm1[0]], 0.)
+    M_t = M_t + T.dot(ww_t.T, a_t)
     K_t = cosine_similarity(k_t, M_t) # (nb_reads, memory_size[0])
 
     wr_t = lasagne.nonlinearities.softmax(K_t) # (nb_reads, memory_size[0])
