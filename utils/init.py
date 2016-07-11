@@ -19,13 +19,10 @@ def shared_zeros(shape, dtype=theano.config.floatX, name='', n=None):
     return theano.shared(np.zeros(shape, dtype=dtype), name=name)
 
 def shared_one_hot(shape, dtype=theano.config.floatX, name='', n=None):
-    assert isinstance(shape, int)
-    shape = shape if n is None else (n, shape)
+    shape = (shape,) if isinstance(shape, int) else shape
+    shape = shape if n is None else (n,) + shape
     initial_vector = np.zeros(shape, dtype=dtype)
-    if n is None:
-        initial_vector[0] = 1.
-    else:
-        initial_vector[:, 0] = 1.
+    initial_vector[..., 0] = 1.
     return theano.shared(initial_vector, name=name)
 
 def weight_and_bias_init(shape, dtype=theano.config.floatX, name='', n=None):
