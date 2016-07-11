@@ -21,8 +21,6 @@ input_size = 20 * 20 + nb_class
 nb_reads = 4
 batch_size = 16
 
-floatX = theano.config.floatX
-
 M_0 = shared_floatX(1e-6 * np.ones((batch_size,) + memory_shape), name='memory')
 c_0 = shared_floatX(np.zeros((batch_size, controller_size)), name='memory_cell_state')
 h_0 = shared_floatX(np.zeros((batch_size, controller_size)), name='hidden_state')
@@ -110,13 +108,14 @@ l_ntm_var, _ = theano.scan(step,
 l_ntm_output_var = T.concatenate(l_ntm_var[2:4], axis=2).dimshuffle(1, 0, 2)
 
 output_var_preactivation = T.dot(l_ntm_output_var, W_o) + b_o
-output_var = lasagne.nonlinearities.softmax(output_var_preactivation.reshape(output_shape_var))
+output_var_flatten = lasagne.nonlinearities.softmax(output_var_preactivation.reshape(output_shape_var))
+output_var = output_var_flatten.reshape(output_var_preactivation.shape)
 
-cost = T.mean(T.nnet.categorical_crossentropy(output_var, target_var.reshape(output_shape_var)))
+cost = T.mean(T.nnet.categorical_crossentropy(output_var_flatten, target_var.flatten()))
 params = [W_key, b_key, W_add, b_add, W_sigma, b_sigma, W_xh, W_rh, W_hh, b_h, W_o, b_o]
-updates = lasagne.updates.adam(cost, params, learning_rate=1e-4)
+updates = lasagne.updates.adam(cost, params, learning_rate=1e-3)
 
-accuracies = accuracy_instance(T.argmax(output_var, axis=1), target_var)
+accuracies = accuracy_instance(T.argmax(output_var, axis=2), target_var, batch_size=batch_size)
 
 train_fn = theano.function([input_var, target_var], cost, updates=updates)
 accuracy_fn = theano.function([input_var, target_var], accuracies)
@@ -124,8 +123,8 @@ accuracy_fn = theano.function([input_var, target_var], accuracies)
 ##
 # Load data
 ##
-generator = OmniglotGenerator(data_folder='./data/omniglot', nb_samples=5, \
-    nb_samples_per_class=10, max_rotation=0., max_shift=0, max_iter=None)
+generator = OmniglotGenerator(data_folder='./data/omniglot', batch_size=batch_size, \
+    nb_samples=5, nb_samples_per_class=10, max_rotation=0., max_shift=0, max_iter=None)
 t0 = time.time()
 all_scores, scores, accs = [], [], np.zeros(generator.nb_samples_per_class)
 try:
