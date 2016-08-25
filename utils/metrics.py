@@ -14,7 +14,7 @@ def accuracy_instance(predictions, targets, n=[1, 2, 3, 4, 5, 10], \
         acc = T.inc_subtensor(acc[T.arange(batch_size), idx[T.arange(batch_size), t]], T.eq(p, t))
         idx = T.inc_subtensor(idx[T.arange(batch_size), t], 1)
         return (acc, idx)
-    (raw_accuracy, _), _ = theano.foldr(step_, sequences=[predictions.dimshuffle(1, 0), \
+    (raw_accuracy, _), _ = theano.foldl(step_, sequences=[predictions.dimshuffle(1, 0), \
         targets.dimshuffle(1, 0)], outputs_info=[accuracy_0, indices_0])
     accuracy = T.mean(raw_accuracy / nb_classes, axis=0)
 
