@@ -1,8 +1,9 @@
+import pytest
+
 import theano
 import theano.tensor as T
 import numpy as np
 
-import pytest
 
 def test_accuracy_instance():
     from metrics import accuracy_instance
@@ -15,8 +16,10 @@ def test_accuracy_instance():
     # Generate sample data
     targets = np.kron(np.arange(5), np.ones((16, 10))).astype('int32')
     predictions = np.zeros((16, 50)).astype('int32')
+
     indices = np.zeros((16, 5)).astype('int32')
     accuracy = np.zeros((16, 10))
+
     for i in range(16):
         for j in range(50):
             correct = np.random.binomial(1, 0.5)
