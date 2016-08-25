@@ -14,7 +14,7 @@ def omniglot():
     target_var = T.imatrix('target') # target_var has dimensions (batch_size, time) (label indices)
 
     output_var, output_var_flatten, params = memory_augmented_neural_network(input_var, \
-        target_var, batch_size=1, nb_class=5, memory_shape=(128, 40), \
+        target_var, batch_size=16, nb_class=5, memory_shape=(128, 40), \
         controller_size=200, input_size=20 * 20 + 5, nb_reads=4)
 
     cost = T.mean(T.nnet.categorical_crossentropy(output_var_flatten, target_var.flatten()))
