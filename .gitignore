@@ -89,4 +89,5 @@ ENV/
 .ropeproject
 
 # Data folder
-data/
+data/omniglot/*
+!data/omniglot/README.md
