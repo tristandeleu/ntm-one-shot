@@ -26,7 +26,7 @@ def omniglot():
     accuracy_fn = theano.function([input_var, target_var], accuracies)
 
     # Load data
-    generator = OmniglotGenerator(data_folder='./data/omniglot', batch_size=1, \
+    generator = OmniglotGenerator(data_folder='./data/omniglot', batch_size=16, \
         nb_samples=5, nb_samples_per_class=10, max_rotation=0., max_shift=0, max_iter=None)
     t0 = time.time()
     all_scores, scores, accs = [], [], np.zeros(generator.nb_samples_per_class)
