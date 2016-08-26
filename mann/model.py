@@ -11,7 +11,7 @@ from .utils.theano_utils import shared_floatX
 
 def memory_augmented_neural_network(input_var, target_var, \
     batch_size=16, nb_class=5, memory_shape=(128, 40), \
-    controller_size=200, input_size=20 * 20 + 5, nb_reads=4):
+    controller_size=200, input_size=20 * 20, nb_reads=4):
     """
     input_var has dimensions (batch_size, time, input_dim)
     target_var has dimensions (batch_size, time) (label indices)
@@ -29,7 +29,7 @@ def memory_augmented_neural_network(input_var, target_var, \
     W_sigma, b_sigma = weight_and_bias_init((controller_size, 1), name='sigma', n=nb_reads)
     # QKFIX: The scaling factor in Glorot initialisation is not correct if we
     # are computing the preactivations jointly
-    W_xh, b_h = weight_and_bias_init((input_size, 4 * controller_size), name='xh')
+    W_xh, b_h = weight_and_bias_init((input_size + nb_class, 4 * controller_size), name='xh')
     W_rh = shared_glorot_uniform((nb_reads * memory_shape[1], 4 * controller_size), name='W_rh')
     W_hh = shared_glorot_uniform((controller_size, 4 * controller_size), name='W_hh')
     W_o, b_o = weight_and_bias_init((controller_size + nb_reads * memory_shape[1], nb_class), name='o')

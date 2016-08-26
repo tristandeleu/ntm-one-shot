@@ -16,7 +16,7 @@ def test_batch_size():
         nb_class=5,
         memory_shape=(128, 40),
         controller_size=200,
-        input_size=20 * 20 + 5,
+        input_size=20 * 20,
         nb_reads=4)
     # Second model with `batch_size=1`
     output_var_2, _, params2 = memory_augmented_neural_network(
@@ -25,7 +25,7 @@ def test_batch_size():
         nb_class=5,
         memory_shape=(128, 40),
         controller_size=200,
-        input_size=20 * 20 + 5,
+        input_size=20 * 20,
         nb_reads=4)
 
     for (param1, param2) in zip(params1, params2):
@@ -55,7 +55,7 @@ def test_shape():
         nb_class=5,
         memory_shape=(128, 40),
         controller_size=200,
-        input_size=20 * 20 + 5,
+        input_size=20 * 20,
         nb_reads=4)
 
     posterior_fn = theano.function([input_var, target_var], output_var)
