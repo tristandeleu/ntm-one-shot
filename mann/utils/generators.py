@@ -22,6 +22,7 @@ class OmniglotGenerator(object):
         self.num_iter = 0
         self.character_folders = [os.path.join(self.data_folder, family, character) \
             for family in os.listdir(self.data_folder) \
+            if os.path.isdir(os.path.join(self.data_folder, family)) \
             for character in os.listdir(os.path.join(self.data_folder, family))]
 
     def __iter__(self):
