@@ -7,5 +7,7 @@ pytest==3.0.7
 scipy==0.19.0
 six==1.10.0
 Theano==0.9.0
+Pillow
+matplotlib
 
 git+ssh://git@github.com/Lasagne/Lasagne.git
