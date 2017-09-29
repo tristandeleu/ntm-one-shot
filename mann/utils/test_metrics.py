@@ -6,7 +6,7 @@ import numpy as np
 
 
 def test_accuracy_instance():
-    from metrics import accuracy_instance
+    from .metrics import accuracy_instance
 
     predictions_var, targets_var = T.imatrices('predictions', 'targets')
     accuracy_var = accuracy_instance(predictions_var, targets_var, \

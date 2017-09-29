@@ -6,7 +6,7 @@ import numpy as np
 
 
 def test_cosine_similarity():
-    from similarities import cosine_similarity
+    from .similarities import cosine_similarity
 
     key_var, memory_var = T.tensor3s('key', 'memory')
     cosine_similarity_fn = theano.function([key_var, memory_var], \
